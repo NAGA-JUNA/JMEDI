@@ -5,6 +5,7 @@ require_once __DIR__ . '/functions.php';
 requireLogin();
 
 $adminPage = basename($_SERVER['PHP_SELF'], '.php');
+$currentHomeSectionNav = $_GET['section'] ?? 'dashboard';
 $adminName = $_SESSION['admin_name'] ?? 'Admin';
 $adminEmail = $_SESSION['admin_email'] ?? '';
 $adminRole = getRole();
@@ -132,8 +133,33 @@ if (isDoctor()) {
         <div class="sidebar-section-label" data-section="cms" role="button" tabindex="0" aria-expanded="true" aria-controls="section-cms"><span>CMS</span><i class="fas fa-chevron-down section-arrow"></i></div>
         <ul class="sidebar-nav" data-section-list="cms" id="section-cms">
             <?php if (hasPermission('home_sections')): ?>
-            <li class="<?= $adminPage === 'home-sections' ? 'active' : '' ?>">
-                <a href="/admin/home-sections.php" data-tooltip="Home Sections"><i class="fas fa-home"></i><span class="nav-label">Home Sections</span></a>
+            <?php $homeSectionSubmenu = [
+                'dashboard' => 'Homepage Dashboard',
+                'hero-slides' => 'Hero Slides',
+                'info-strip' => 'Info Strip',
+                'about' => 'About',
+                'why-choose-us' => 'Why Choose Us',
+                'departments' => 'Departments',
+                'doctors' => 'Doctors',
+                'cta-checkup' => 'CTA Check-up',
+                'appointment' => 'Appointment',
+                'process' => 'Process',
+                'statistics' => 'Statistics',
+                'testimonials' => 'Testimonials',
+                'blog' => 'Blog',
+                'location' => 'Location',
+                'cta-ready' => 'CTA Ready',
+                'videos' => 'Videos',
+            ]; ?>
+            <li class="<?= $adminPage === 'home-sections' ? 'active has-submenu' : 'has-submenu' ?>">
+                <a href="/admin/home-sections.php?section=dashboard" data-tooltip="Homepage Section Manager"><i class="fas fa-home"></i><span class="nav-label">Homepage Section Manager</span></a>
+                <ul class="sidebar-submenu">
+                    <?php foreach ($homeSectionSubmenu as $slug => $label): ?>
+                    <li class="<?= ($adminPage === 'home-sections' && $currentHomeSectionNav === $slug) ? 'active' : '' ?>">
+                        <a href="/admin/home-sections.php?section=<?= e($slug) ?>"><span class="nav-label"><?= e($label) ?></span></a>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
             </li>
             <?php endif; ?>
             <?php if (hasPermission('menu_manager')): ?>

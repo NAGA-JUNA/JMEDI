@@ -231,6 +231,14 @@
 .sidebar-nav li.active a::before { opacity: 1; }
 .sidebar-nav li.active a i { color: var(--admin-active-bar); }
 
+.sidebar-nav li.has-submenu > a { font-weight: 600; }
+.sidebar-submenu { list-style: none; margin: 0.25rem 0 0.35rem; padding-left: 2.1rem; max-height: 0; overflow: hidden; opacity: 0; transition: max-height .24s ease, opacity .2s ease; }
+.sidebar-nav li.has-submenu.active .sidebar-submenu { max-height: 520px; opacity: 1; }
+.sidebar-submenu li { margin: 0.12rem 0; }
+.sidebar-submenu li a { padding: 0.38rem 0.55rem !important; border-radius: 8px; font-size: 0.78rem; color: rgba(255,255,255,0.72); display:flex; align-items:center; }
+.sidebar-submenu li.active a { background: rgba(59,130,246,0.18); color: #fff; }
+.sidebar-submenu li a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
 /* ---- Nav badge ---- */
 .sb-badge {
     background: #ef4444;
