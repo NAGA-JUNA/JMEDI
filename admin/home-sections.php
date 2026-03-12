@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         if ($earlyAction === 'save_section_order') {
             $postedOrder = $_POST['order'] ?? [];
             if (is_array($postedOrder)) {
-                $clean = array_values(array_filter($postedOrder, static fn($x) => isset($manager['sections'][$x])));
+                $clean = array_values(array_filter($postedOrder, function($x) use ($manager) { return isset($manager['sections'][$x]); }));
                 foreach (array_keys($manager['sections']) as $k) {
                     if (!in_array($k, $clean, true)) $clean[] = $k;
                 }
@@ -261,11 +261,11 @@ foreach ($allSections as $k => $meta) {
         $sectionManager['order'][] = $k;
     }
 }
-$orderedSectionKeys = array_values(array_filter($sectionManager['order'], static fn($k) => isset($sectionManager['sections'][$k])));
+$orderedSectionKeys = array_values(array_filter($sectionManager['order'], function($k) use ($sectionManager) { return isset($sectionManager['sections'][$k]); }));
 foreach (array_keys($sectionManager['sections']) as $k) {
     if (!in_array($k, $orderedSectionKeys, true)) $orderedSectionKeys[] = $k;
 }
-$activeSectionCount = count(array_filter($sectionManager['sections'], static fn($s) => ($s['status'] ?? '') === 'active'));
+$activeSectionCount = count(array_filter($sectionManager['sections'], function($s) { return ($s['status'] ?? '') === 'active'; }));
 
 $homepageSectionMenu = [
     'dashboard' => ['label' => 'Homepage Dashboard', 'icon' => 'fa-th-large', 'description' => 'Overview of all editable homepage sections.', 'tab' => null],
