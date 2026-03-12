@@ -9,13 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $earlyAction = $_POST['action'] ?? '';
     if ($earlyAction === 'hero_delete' && isset($_POST['delete_id'])) {
         $pdo->prepare("DELETE FROM hero_slides WHERE id = :id")->execute([':id' => (int)$_POST['delete_id']]);
-        header('Location: /admin/home-sections.php?tab=heroSlidesTab&msg=deleted');
+        header('Location: /admin/home-sections.php?section=hero-slides&msg=deleted');
         exit;
     }
     if ($earlyAction === 'hero_toggle' && isset($_POST['toggle_id'])) {
         $pdo->prepare("UPDATE hero_slides SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END WHERE id = :id")
             ->execute([':id' => (int)$_POST['toggle_id']]);
-        header('Location: /admin/home-sections.php?tab=heroSlidesTab&msg=toggled');
+        header('Location: /admin/home-sections.php?section=hero-slides&msg=toggled');
         exit;
     }
     if ($earlyAction === 'quick_toggle_section') {
@@ -266,6 +266,30 @@ foreach (array_keys($sectionManager['sections']) as $k) {
     if (!in_array($k, $orderedSectionKeys, true)) $orderedSectionKeys[] = $k;
 }
 $activeSectionCount = count(array_filter($sectionManager['sections'], static fn($s) => ($s['status'] ?? '') === 'active'));
+
+$homepageSectionMenu = [
+    'dashboard' => ['label' => 'Homepage Dashboard', 'icon' => 'fa-th-large', 'description' => 'Overview of all editable homepage sections.', 'tab' => null],
+    'hero-slides' => ['label' => 'Hero Slides', 'icon' => 'fa-images', 'description' => 'Manage hero banners and slider content.', 'tab' => 'heroSlidesTab'],
+    'info-strip' => ['label' => 'Info Strip', 'icon' => 'fa-columns', 'description' => 'Update quick contact and info highlights.', 'tab' => 'infoStripTab'],
+    'about' => ['label' => 'About', 'icon' => 'fa-info-circle', 'description' => 'Edit About section text and media.', 'tab' => 'aboutTab'],
+    'why-choose-us' => ['label' => 'Why Choose Us', 'icon' => 'fa-shield-alt', 'description' => 'Control value proposition content.', 'tab' => 'wcuTab'],
+    'departments' => ['label' => 'Departments', 'icon' => 'fa-hospital', 'description' => 'Configure department section listing.', 'tab' => 'departmentsTab'],
+    'doctors' => ['label' => 'Doctors', 'icon' => 'fa-user-md', 'description' => 'Manage featured doctors section link.', 'tab' => 'doctorsTab'],
+    'cta-checkup' => ['label' => 'CTA Check-up', 'icon' => 'fa-stethoscope', 'description' => 'Edit call-to-action check-up banner.', 'tab' => 'ctaCheckupTab'],
+    'appointment' => ['label' => 'Appointment', 'icon' => 'fa-calendar-check', 'description' => 'Control appointment booking section copy.', 'tab' => 'appointmentTab'],
+    'process' => ['label' => 'Process', 'icon' => 'fa-cogs', 'description' => 'Update working process steps.', 'tab' => 'processTab'],
+    'statistics' => ['label' => 'Statistics', 'icon' => 'fa-chart-bar', 'description' => 'Manage numbers and metrics.', 'tab' => 'statsTab'],
+    'testimonials' => ['label' => 'Testimonials', 'icon' => 'fa-comments', 'description' => 'Go to testimonials management.', 'tab' => 'testimonialsTab'],
+    'blog' => ['label' => 'Blog', 'icon' => 'fa-newspaper', 'description' => 'Go to blog/news management.', 'tab' => 'blogTab'],
+    'location' => ['label' => 'Location', 'icon' => 'fa-map-marked-alt', 'description' => 'Edit map and location details.', 'tab' => 'locationTab'],
+    'cta-ready' => ['label' => 'CTA Ready', 'icon' => 'fa-rocket', 'description' => 'Configure final CTA near footer.', 'tab' => 'ctaReadyTab'],
+    'videos' => ['label' => 'Videos', 'icon' => 'fa-play-circle', 'description' => 'Manage homepage videos section.', 'tab' => 'videosTab'],
+];
+$currentSection = trim($_GET['section'] ?? 'dashboard');
+if (!isset($homepageSectionMenu[$currentSection])) {
+    $currentSection = 'dashboard';
+}
+$currentTabTarget = $homepageSectionMenu[$currentSection]['tab'] ?? null;
 
 if (!isset($infoStrip['items'])) {
     $infoStrip = ['items' => [
@@ -700,54 +724,38 @@ if (isset($_GET['msg'])) {
     <?php endif; ?>
 
 
-    <div class="saas-section-manager mb-4">
-        <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-3">
-            <div>
-                <h5 class="mb-1">Homepage Section Manager</h5>
-                <p class="text-muted mb-0">Drag, filter, preview and publish section changes with live AJAX saving.</p>
-            </div>
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn"><i class="fas fa-save me-2"></i>Save Draft</button>
-                <button type="button" class="btn btn-primary" id="publishChangesBtn"><i class="fas fa-rocket me-2"></i>Publish Changes</button>
-            </div>
-        </div>
 
-        <div class="section-toolbar card border-0 shadow-sm rounded-4 mb-3">
-            <div class="card-body p-3 p-md-4 d-flex flex-wrap gap-3 align-items-center justify-content-between">
-                <div class="input-group section-search-wrap">
-                    <span class="input-group-text bg-transparent border-end-0"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" class="form-control border-start-0" id="sectionSearch" placeholder="Search sections...">
+    <div class="card border-0 shadow-sm rounded-4 mb-4 homepage-manager-shell">
+        <div class="card-body p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-home me-2 text-primary"></i>Homepage Section Manager</h5>
+                    <p class="text-muted mb-0">Use the menu to open each homepage editor. Dashboard gives a full section overview.</p>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge text-bg-success" id="sectionActiveBadge"><?= $activeSectionCount ?> Active</span>
-                    <span class="badge text-bg-dark"><?= count($sectionManager['sections']) ?> Total</span>
-                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addSectionModal"><i class="fas fa-plus me-1"></i> Add Section</button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn"><i class="fas fa-save me-2"></i>Save Draft</button>
+                    <button type="button" class="btn btn-primary" id="publishChangesBtn"><i class="fas fa-rocket me-2"></i>Publish Changes</button>
                 </div>
             </div>
-        </div>
 
-        <div id="sectionCardsGrid" class="row g-3">
-            <?php foreach ($orderedSectionKeys as $sKey): $section = $sectionManager['sections'][$sKey]; ?>
-            <div class="col-xl-4 col-lg-6 section-card-col" data-section-item data-section-key="<?= e($sKey) ?>" data-section-title="<?= e(strtolower($section['title'] ?? $sKey)) ?>" data-section-description="<?= e(strtolower($section['description'] ?? '')) ?>">
-                <div class="section-manager-card card border-0 shadow-sm h-100 rounded-4" data-drag-handle>
-                    <div class="card-body p-3 p-md-4 d-flex flex-column gap-3">
-                        <div class="d-flex justify-content-between align-items-start gap-2">
-                            <div class="d-flex align-items-center gap-2">
-                                <button type="button" class="btn btn-light btn-sm section-drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></button>
-                                <span class="section-icon-badge"><i class="fas <?= e($section['icon'] ?? 'fa-layer-group') ?>"></i></span>
-                                <div>
-                                    <h6 class="mb-0"><?= e($section['title'] ?? $sKey) ?></h6>
-                                    <small class="text-muted"><?= e($section['description'] ?? 'Homepage section') ?></small>
+            <div class="accordion" id="homepageSectionAccordion">
+                <div class="accordion-item border rounded-3 overflow-hidden">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#homepageSectionMenuCollapse" aria-expanded="true" aria-controls="homepageSectionMenuCollapse">
+                            <i class="fas fa-layer-group me-2"></i> Section Navigation
+                        </button>
+                    </h2>
+                    <div id="homepageSectionMenuCollapse" class="accordion-collapse collapse show" data-bs-parent="#homepageSectionAccordion">
+                        <div class="accordion-body">
+                            <div class="row g-2">
+                                <?php foreach ($homepageSectionMenu as $slug => $menuItem): ?>
+                                <div class="col-xl-3 col-lg-4 col-md-6">
+                                    <a href="/admin/home-sections.php?section=<?= e($slug) ?>" class="homepage-menu-link <?= $currentSection === $slug ? 'active' : '' ?>">
+                                        <i class="fas <?= e($menuItem['icon']) ?>"></i>
+                                        <span><?= e($menuItem['label']) ?></span>
+                                    </a>
                                 </div>
-                            </div>
-                            <?php $status = $section['status'] ?? 'draft'; ?>
-                            <span class="badge section-status-badge status-<?= e($status) ?>"><?= e(ucfirst($status)) ?></span>
-                        </div>
-
-                        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-                            <div class="form-check form-switch m-0">
-                                <input class="form-check-input section-visible-toggle" type="checkbox" role="switch" id="sm_vis_<?= e($sKey) ?>" <?= !empty($section['visible']) ? 'checked' : '' ?> onchange="saveSectionToggle('<?= e($sKey) ?>', this)">
-                                <label class="form-check-label small" for="sm_vis_<?= e($sKey) ?>">Visible</label>
+                                <?php endforeach; ?>
                             </div>
                             <select class="form-select form-select-sm section-animation-select" onchange="saveSectionAnimation('<?= e($sKey) ?>', this.value)">
                                 <?php $ani = $section['animation'] ?? 'fade'; ?>
@@ -786,48 +794,41 @@ if (isset($_GET['msg'])) {
                         <textarea class="form-control" id="newSectionDescription" rows="3" placeholder="Short description..."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer border-0 pt-0">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="createSectionBtn">Create Section</button>
-                </div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="sectionPreviewModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
-                <div class="modal-header border-0 bg-dark text-white">
-                    <h5 class="modal-title" id="sectionPreviewTitle">Section Preview</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="sectionPreviewBody" class="p-4 rounded-3 bg-light"></div>
+    <?php if ($currentSection === 'dashboard'): ?>
+    <div class="row g-3 mb-4">
+        <?php foreach ($homepageSectionMenu as $slug => $menuItem): ?>
+        <?php if ($slug === 'dashboard') continue; ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 homepage-dashboard-card">
+                <div class="card-body p-3 d-flex flex-column">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="section-icon-badge"><i class="fas <?= e($menuItem['icon']) ?>"></i></span>
+                        <h6 class="mb-0"><?= e($menuItem['label']) ?></h6>
+                    </div>
+                    <p class="text-muted small flex-grow-1 mb-3"><?= e($menuItem['description']) ?></p>
+                    <a href="/admin/home-sections.php?section=<?= e($slug) ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-pen me-1"></i>Edit</a>
                 </div>
             </div>
         </div>
+        <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+    <div class="d-flex justify-content-between align-items-center mb-3 section-editor-head">
+        <div>
+            <h5 class="mb-1"><?= e($homepageSectionMenu[$currentSection]['label']) ?> Editor</h5>
+            <p class="text-muted mb-0"><?= e($homepageSectionMenu[$currentSection]['description']) ?></p>
+        </div>
+        <a href="/admin/home-sections.php?section=dashboard" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Back to Dashboard</a>
     </div>
 
-    <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto" role="tablist" style="white-space:nowrap;">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#heroSlidesTab" type="button"><i class="fas fa-images me-1"></i> Hero Slides</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#infoStripTab" type="button"><i class="fas fa-columns me-1"></i> Info Strip</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#aboutTab" type="button"><i class="fas fa-info-circle me-1"></i> About</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#wcuTab" type="button"><i class="fas fa-shield-alt me-1"></i> Why Choose Us</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#departmentsTab" type="button"><i class="fas fa-hospital me-1"></i> Departments</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#doctorsTab" type="button"><i class="fas fa-user-md me-1"></i> Doctors</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ctaCheckupTab" type="button"><i class="fas fa-stethoscope me-1"></i> CTA Check-up</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#appointmentTab" type="button"><i class="fas fa-calendar-check me-1"></i> Appointment</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#processTab" type="button"><i class="fas fa-cogs me-1"></i> Process</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#statsTab" type="button"><i class="fas fa-chart-bar me-1"></i> Statistics</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#testimonialsTab" type="button"><i class="fas fa-comments me-1"></i> Testimonials</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#blogTab" type="button"><i class="fas fa-newspaper me-1"></i> Blog</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#locationTab" type="button"><i class="fas fa-map-marked-alt me-1"></i> Location</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ctaReadyTab" type="button"><i class="fas fa-rocket me-1"></i> CTA Ready</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#videosTab" type="button"><i class="fab fa-youtube me-1" style="color:#ff0000;"></i> Videos</button></li>
-    </ul>
+
 
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="heroSlidesTab">
+        <div class="tab-pane <?= $currentTabTarget === "heroSlidesTab" ? "show active" : "" ?>" id="heroSlidesTab" <?= $currentTabTarget === "heroSlidesTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -835,7 +836,7 @@ if (isset($_GET['msg'])) {
                         <?= $visToggle('hero_slider') ?>
                     </div>
                     <?php if ($heroAction !== 'add' && $heroAction !== 'edit'): ?>
-                    <a href="/admin/home-sections.php?action=add&tab=heroSlidesTab" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Slide</a>
+                    <a href="/admin/home-sections.php?action=add&section=hero-slides" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Slide</a>
                     <?php endif; ?>
                 </div>
                 <div class="card-body p-4">
@@ -906,7 +907,7 @@ if (isset($_GET['msg'])) {
                             </div>
                             <div class="col-12 mt-3">
                                 <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>Save Slide</button>
-                                <a href="/admin/home-sections.php?tab=heroSlidesTab" class="btn btn-secondary px-4">Cancel</a>
+                                <a href="/admin/home-sections.php?section=hero-slides" class="btn btn-secondary px-4">Cancel</a>
                             </div>
                         </div>
                     </form>
@@ -930,7 +931,7 @@ if (isset($_GET['msg'])) {
                                         </form>
                                     </td>
                                     <td>
-                                        <a href="/admin/home-sections.php?action=edit&id=<?= $s['id'] ?>&tab=heroSlidesTab" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
+                                        <a href="/admin/home-sections.php?action=edit&id=<?= $s['id'] ?>&section=hero-slides" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
                                         <form method="POST" class="d-inline"><?= csrfField() ?><input type="hidden" name="action" value="hero_delete"><input type="hidden" name="delete_id" value="<?= $s['id'] ?>">
                                             <button type="button" class="btn btn-sm btn-outline-danger" data-delete-trigger data-delete-label="the slide '<?= e($s['title']) ?>'"><i class="fas fa-trash"></i></button>
                                         </form>
@@ -945,7 +946,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="infoStripTab">
+        <div class="tab-pane <?= $currentTabTarget === "infoStripTab" ? "show active" : "" ?>" id="infoStripTab" <?= $currentTabTarget === "infoStripTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -1005,7 +1006,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="aboutTab">
+        <div class="tab-pane <?= $currentTabTarget === "aboutTab" ? "show active" : "" ?>" id="aboutTab" <?= $currentTabTarget === "aboutTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-primary"></i>About Section</h6>
@@ -1103,7 +1104,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="wcuTab">
+        <div class="tab-pane <?= $currentTabTarget === "wcuTab" ? "show active" : "" ?>" id="wcuTab" <?= $currentTabTarget === "wcuTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-shield-alt me-2 text-primary"></i>Why Choose Us Section</h6>
@@ -1195,7 +1196,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="locationTab">
+        <div class="tab-pane <?= $currentTabTarget === "locationTab" ? "show active" : "" ?>" id="locationTab" <?= $currentTabTarget === "locationTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-map-marked-alt me-2 text-primary"></i>Location Section</h6>
@@ -1287,7 +1288,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="departmentsTab">
+        <div class="tab-pane <?= $currentTabTarget === "departmentsTab" ? "show active" : "" ?>" id="departmentsTab" <?= $currentTabTarget === "departmentsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-hospital me-2 text-primary"></i>Departments</h6>
@@ -1302,7 +1303,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="doctorsTab">
+        <div class="tab-pane <?= $currentTabTarget === "doctorsTab" ? "show active" : "" ?>" id="doctorsTab" <?= $currentTabTarget === "doctorsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-user-md me-2 text-primary"></i>Doctors</h6>
@@ -1317,7 +1318,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="ctaCheckupTab">
+        <div class="tab-pane <?= $currentTabTarget === "ctaCheckupTab" ? "show active" : "" ?>" id="ctaCheckupTab" <?= $currentTabTarget === "ctaCheckupTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-stethoscope me-2 text-primary"></i>CTA - Need a Check-up</h6>
@@ -1354,7 +1355,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="appointmentTab">
+        <div class="tab-pane <?= $currentTabTarget === "appointmentTab" ? "show active" : "" ?>" id="appointmentTab" <?= $currentTabTarget === "appointmentTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-calendar-check me-2 text-primary"></i>Appointment Section</h6>
@@ -1387,7 +1388,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="processTab">
+        <div class="tab-pane <?= $currentTabTarget === "processTab" ? "show active" : "" ?>" id="processTab" <?= $currentTabTarget === "processTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -1445,7 +1446,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="statsTab">
+        <div class="tab-pane <?= $currentTabTarget === "statsTab" ? "show active" : "" ?>" id="statsTab" <?= $currentTabTarget === "statsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -1498,7 +1499,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="testimonialsTab">
+        <div class="tab-pane <?= $currentTabTarget === "testimonialsTab" ? "show active" : "" ?>" id="testimonialsTab" <?= $currentTabTarget === "testimonialsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-comments me-2 text-primary"></i>Testimonials</h6>
@@ -1513,7 +1514,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="blogTab">
+        <div class="tab-pane <?= $currentTabTarget === "blogTab" ? "show active" : "" ?>" id="blogTab" <?= $currentTabTarget === "blogTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-newspaper me-2 text-primary"></i>Latest News / Blog</h6>
@@ -1528,7 +1529,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="ctaReadyTab">
+        <div class="tab-pane <?= $currentTabTarget === "ctaReadyTab" ? "show active" : "" ?>" id="ctaReadyTab" <?= $currentTabTarget === "ctaReadyTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-rocket me-2 text-primary"></i>CTA - Ready to Get Started</h6>
@@ -1574,7 +1575,7 @@ if (isset($_GET['msg'])) {
         </div>
 
         <!-- ═══════════════════ OUR VIDEOS TAB ═══════════════════ -->
-        <div class="tab-pane fade" id="videosTab">
+        <div class="tab-pane <?= $currentTabTarget === "videosTab" ? "show active" : "" ?>" id="videosTab" <?= $currentTabTarget === "videosTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fab fa-youtube me-2" style="color:#ff0000;"></i>Our Latest Videos — Section Settings</h6>
@@ -1690,6 +1691,7 @@ if (isset($_GET['msg'])) {
         <!-- ══════════════════════════════════════════════════════ -->
 
     </div>
+    <?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
@@ -1919,16 +1921,6 @@ function addStatItem() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    if (tab) {
-        const tabEl = document.querySelector('[data-bs-target="#' + tab + '"]');
-        if (tabEl) {
-            const bsTab = new bootstrap.Tab(tabEl);
-            bsTab.show();
-        }
-    }
-
     const grid = document.getElementById('sectionCardsGrid');
     if (grid && typeof Sortable !== 'undefined') {
         Sortable.create(grid, {
@@ -1961,7 +1953,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const description = document.getElementById('newSectionDescription').value.trim();
             if (!title) return;
             const data = await postSectionManager('add_section', { title, description });
-            if (data.ok) window.location.reload();
+            if (data.ok) window.location.href = '/admin/home-sections.php?section=dashboard';
         });
     }
 
@@ -1976,6 +1968,13 @@ document.addEventListener('DOMContentLoaded', function() {
 <style>
 
 .saas-section-manager .section-toolbar { background: linear-gradient(180deg,#ffffff,#f8fbff); }
+
+.homepage-manager-shell .accordion-button { font-weight: 700; }
+.homepage-menu-link { display:flex; align-items:center; gap:.55rem; padding:.62rem .72rem; border:1px solid #e5e9f2; border-radius:10px; text-decoration:none; color:#334155; font-size:.88rem; background:#fff; transition:all .2s ease; }
+.homepage-menu-link:hover { border-color:#bfd0f5; color:#1d4ed8; transform:translateY(-1px); }
+.homepage-menu-link.active { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:600; }
+.homepage-dashboard-card { border:1px solid #e9eef7; }
+.section-editor-head { background:#fff; border:1px solid #e8edf5; border-radius:14px; padding:12px 14px; }
 .section-search-wrap { width: min(440px, 100%); }
 .section-manager-card { transition: transform .2s ease, box-shadow .2s ease; border: 1px solid #e9eef7; }
 .section-manager-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(15,33,55,.12)!important; }
