@@ -757,7 +757,41 @@ if (isset($_GET['msg'])) {
                                 </div>
                                 <?php endforeach; ?>
                             </div>
+                            <select class="form-select form-select-sm section-animation-select" onchange="saveSectionAnimation('<?= e($sKey) ?>', this.value)">
+                                <?php $ani = $section['animation'] ?? 'fade'; ?>
+                                <option value="fade" <?= $ani === 'fade' ? 'selected' : '' ?>>Fade</option>
+                                <option value="slide" <?= $ani === 'slide' ? 'selected' : '' ?>>Slide</option>
+                                <option value="zoom" <?= $ani === 'zoom' ? 'selected' : '' ?>>Zoom</option>
+                                <option value="parallax" <?= $ani === 'parallax' ? 'selected' : '' ?>>Parallax</option>
+                            </select>
                         </div>
+
+                        <div class="d-flex gap-2 mt-auto">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="setSectionStatus('<?= e($sKey) ?>', 'draft', this)"><i class="fas fa-pen-nib me-1"></i>Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openSectionPreview('<?= e($sKey) ?>')"><i class="fas fa-eye me-1"></i>Preview</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addSectionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title">Add Section</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="mb-3">
+                        <label class="form-label">Section Title</label>
+                        <input type="text" class="form-control" id="newSectionTitle" placeholder="e.g. Insurance Partners">
+                    </div>
+                    <div>
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="newSectionDescription" rows="3" placeholder="Short description..."></textarea>
                     </div>
                 </div>
             </div>
