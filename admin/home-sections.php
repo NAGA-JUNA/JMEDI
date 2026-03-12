@@ -9,13 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $earlyAction = $_POST['action'] ?? '';
     if ($earlyAction === 'hero_delete' && isset($_POST['delete_id'])) {
         $pdo->prepare("DELETE FROM hero_slides WHERE id = :id")->execute([':id' => (int)$_POST['delete_id']]);
-        header('Location: /admin/home-sections.php?tab=heroSlidesTab&msg=deleted');
+        header('Location: /admin/home-sections.php?section=hero-slides&msg=deleted');
         exit;
     }
     if ($earlyAction === 'hero_toggle' && isset($_POST['toggle_id'])) {
         $pdo->prepare("UPDATE hero_slides SET status = CASE WHEN status = 1 THEN 0 ELSE 1 END WHERE id = :id")
             ->execute([':id' => (int)$_POST['toggle_id']]);
-        header('Location: /admin/home-sections.php?tab=heroSlidesTab&msg=toggled');
+        header('Location: /admin/home-sections.php?section=hero-slides&msg=toggled');
         exit;
     }
     if ($earlyAction === 'quick_toggle_section') {
@@ -28,6 +28,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         }
         header('Content-Type: application/json');
         echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    if (in_array($earlyAction, ['save_section_order', 'save_section_toggle', 'save_section_animation', 'save_section_status', 'add_section', 'save_section_draft', 'publish_section_changes'], true)) {
+        $allSectionsMap = [
+            'hero_slider' => ['label' => 'Hero Slider', 'icon' => 'fa-images', 'description' => 'Primary hero carousel and headline messaging.'],
+            'info_strip' => ['label' => 'Info Strip', 'icon' => 'fa-columns', 'description' => 'Quick access links for appointments and contact.'],
+            'about_section' => ['label' => 'About Us', 'icon' => 'fa-info-circle', 'description' => 'Hospital introduction and key trust signals.'],
+            'why_choose_us' => ['label' => 'Why Choose Us', 'icon' => 'fa-shield-alt', 'description' => 'Feature highlights and differentiators.'],
+            'departments' => ['label' => 'Departments', 'icon' => 'fa-hospital', 'description' => 'Department categories and specialties.'],
+            'doctors' => ['label' => 'Doctors', 'icon' => 'fa-user-md', 'description' => 'Featured doctors and physician listing.'],
+            'our_videos' => ['label' => 'Our Videos', 'icon' => 'fa-play-circle', 'description' => 'Video stories and healthcare guidance clips.'],
+            'cta_checkup' => ['label' => 'CTA - Check-up', 'icon' => 'fa-stethoscope', 'description' => 'Mid-page call-to-action block.'],
+            'appointment' => ['label' => 'Appointment Form', 'icon' => 'fa-calendar-check', 'description' => 'Inline booking section and lead capture.'],
+            'process' => ['label' => 'Working Process', 'icon' => 'fa-cogs', 'description' => 'How patients move through care journey.'],
+            'stats' => ['label' => 'Statistics', 'icon' => 'fa-chart-bar', 'description' => 'Outcome and trust metric counters.'],
+            'testimonials' => ['label' => 'Testimonials', 'icon' => 'fa-comments', 'description' => 'Social proof and patient feedback.'],
+            'blog' => ['label' => 'Latest News', 'icon' => 'fa-newspaper', 'description' => 'Latest updates and educational posts.'],
+            'location_section' => ['label' => 'Location & Map', 'icon' => 'fa-map-marked-alt', 'description' => 'Address, map and contact details.'],
+            'cta_ready' => ['label' => 'CTA - Get Started', 'icon' => 'fa-rocket', 'description' => 'Final conversion block near footer.'],
+        ];
+        $manager = getHomeSection($pdo, 'section_manager');
+        if (empty($manager['sections']) || !is_array($manager['sections'])) {
+            $manager['sections'] = [];
+        }
+        if (empty($manager['order']) || !is_array($manager['order'])) {
+            $manager['order'] = array_keys($allSectionsMap);
+        }
+        foreach ($allSectionsMap as $k => $meta) {
+            if (empty($manager['sections'][$k])) {
+                $manager['sections'][$k] = [
+                    'key' => $k,
+                    'title' => $meta['label'],
+                    'description' => $meta['description'],
+                    'icon' => $meta['icon'],
+                    'status' => 'active',
+                    'animation' => 'fade',
+                    'visible' => true,
+                    'is_custom' => false,
+                ];
+            }
+            if (!in_array($k, $manager['order'], true)) {
+                $manager['order'][] = $k;
+            }
+        }
+
+        $payload = ['ok' => true];
+        if ($earlyAction === 'save_section_order') {
+            $postedOrder = $_POST['order'] ?? [];
+            if (is_array($postedOrder)) {
+                $clean = array_values(array_filter($postedOrder, static fn($x) => isset($manager['sections'][$x])));
+                foreach (array_keys($manager['sections']) as $k) {
+                    if (!in_array($k, $clean, true)) $clean[] = $k;
+                }
+                $manager['order'] = $clean;
+            }
+        } elseif ($earlyAction === 'save_section_toggle') {
+            $key = trim($_POST['section_key'] ?? '');
+            if (isset($manager['sections'][$key])) {
+                $manager['sections'][$key]['visible'] = !empty($_POST['visible']);
+                $manager['sections'][$key]['status'] = !empty($_POST['visible']) ? 'active' : 'hidden';
+                $vis = getHomeSection($pdo, 'section_visibility') ?: [];
+                $vis[$key] = !empty($_POST['visible']);
+                saveHomeSection($pdo, 'section_visibility', $vis);
+            }
+        } elseif ($earlyAction === 'save_section_animation') {
+            $allowedAnimations = ['fade', 'slide', 'zoom', 'parallax'];
+            $key = trim($_POST['section_key'] ?? '');
+            $animation = trim($_POST['animation'] ?? 'fade');
+            if (isset($manager['sections'][$key]) && in_array($animation, $allowedAnimations, true)) {
+                $manager['sections'][$key]['animation'] = $animation;
+            }
+        } elseif ($earlyAction === 'save_section_status') {
+            $allowedStatuses = ['active', 'hidden', 'draft'];
+            $key = trim($_POST['section_key'] ?? '');
+            $status = trim($_POST['status'] ?? 'draft');
+            if (isset($manager['sections'][$key]) && in_array($status, $allowedStatuses, true)) {
+                $manager['sections'][$key]['status'] = $status;
+                $manager['sections'][$key]['visible'] = $status === 'active';
+            }
+        } elseif ($earlyAction === 'add_section') {
+            $title = trim($_POST['title'] ?? '');
+            $description = trim($_POST['description'] ?? '');
+            if ($title !== '') {
+                $slug = slugify($title);
+                $customKey = 'custom_' . ($slug ?: 'section_' . time());
+                $i = 2;
+                while (isset($manager['sections'][$customKey])) {
+                    $customKey = 'custom_' . ($slug ?: 'section') . '_' . $i++;
+                }
+                $manager['sections'][$customKey] = [
+                    'key' => $customKey,
+                    'title' => $title,
+                    'description' => $description ?: 'Custom homepage section.',
+                    'icon' => 'fa-layer-group',
+                    'status' => 'draft',
+                    'animation' => 'fade',
+                    'visible' => false,
+                    'is_custom' => true,
+                ];
+                $manager['order'][] = $customKey;
+                $payload['section'] = $manager['sections'][$customKey];
+            } else {
+                $payload = ['ok' => false, 'message' => 'Section title is required.'];
+            }
+        } elseif ($earlyAction === 'save_section_draft') {
+            $manager['last_saved_at'] = date('c');
+            $manager['workflow_state'] = 'draft';
+        } elseif ($earlyAction === 'publish_section_changes') {
+            $manager['last_published_at'] = date('c');
+            $manager['workflow_state'] = 'published';
+        }
+
+        if (!empty($payload['ok'])) {
+            saveHomeSection($pdo, 'section_manager', $manager);
+        }
+        header('Content-Type: application/json');
+        echo json_encode($payload);
         exit;
     }
 }
@@ -100,6 +218,78 @@ $allSections = [
 if (empty($sectionVisibility)) {
     $sectionVisibility = array_fill_keys(array_keys($allSections), true);
 }
+
+
+$sectionManager = getHomeSection($pdo, 'section_manager');
+if (empty($sectionManager['sections']) || !is_array($sectionManager['sections'])) {
+    $sectionManager['sections'] = [];
+}
+if (empty($sectionManager['order']) || !is_array($sectionManager['order'])) {
+    $sectionManager['order'] = array_keys($allSections);
+}
+$sectionDescriptions = [
+    'hero_slider' => 'Primary hero carousel and headline messaging.',
+    'info_strip' => 'Quick access links for appointments and contact.',
+    'about_section' => 'Hospital introduction and trust building content.',
+    'why_choose_us' => 'Feature highlights and core differentiators.',
+    'departments' => 'Department categories and specialties.',
+    'doctors' => 'Featured doctors and physician listing.',
+    'our_videos' => 'Video stories and healthcare guidance clips.',
+    'cta_checkup' => 'Mid-page check-up call-to-action block.',
+    'appointment' => 'Inline booking section and lead capture form.',
+    'process' => 'How patients move through the care journey.',
+    'stats' => 'Outcome and trust metric counters.',
+    'testimonials' => 'Social proof and patient feedback cards.',
+    'blog' => 'Latest updates and educational posts.',
+    'location_section' => 'Address, map and contact details.',
+    'cta_ready' => 'Final conversion block near footer.',
+];
+foreach ($allSections as $k => $meta) {
+    if (empty($sectionManager['sections'][$k])) {
+        $sectionManager['sections'][$k] = [
+            'key' => $k,
+            'title' => $meta['label'],
+            'description' => $sectionDescriptions[$k] ?? 'Homepage section',
+            'icon' => $meta['icon'],
+            'status' => !empty($sectionVisibility[$k]) ? 'active' : 'hidden',
+            'animation' => 'fade',
+            'visible' => !empty($sectionVisibility[$k]),
+            'is_custom' => false,
+        ];
+    }
+    if (!in_array($k, $sectionManager['order'], true)) {
+        $sectionManager['order'][] = $k;
+    }
+}
+$orderedSectionKeys = array_values(array_filter($sectionManager['order'], static fn($k) => isset($sectionManager['sections'][$k])));
+foreach (array_keys($sectionManager['sections']) as $k) {
+    if (!in_array($k, $orderedSectionKeys, true)) $orderedSectionKeys[] = $k;
+}
+$activeSectionCount = count(array_filter($sectionManager['sections'], static fn($s) => ($s['status'] ?? '') === 'active'));
+
+$homepageSectionMenu = [
+    'dashboard' => ['label' => 'Homepage Dashboard', 'icon' => 'fa-th-large', 'description' => 'Overview of all editable homepage sections.', 'tab' => null],
+    'hero-slides' => ['label' => 'Hero Slides', 'icon' => 'fa-images', 'description' => 'Manage hero banners and slider content.', 'tab' => 'heroSlidesTab'],
+    'info-strip' => ['label' => 'Info Strip', 'icon' => 'fa-columns', 'description' => 'Update quick contact and info highlights.', 'tab' => 'infoStripTab'],
+    'about' => ['label' => 'About', 'icon' => 'fa-info-circle', 'description' => 'Edit About section text and media.', 'tab' => 'aboutTab'],
+    'why-choose-us' => ['label' => 'Why Choose Us', 'icon' => 'fa-shield-alt', 'description' => 'Control value proposition content.', 'tab' => 'wcuTab'],
+    'departments' => ['label' => 'Departments', 'icon' => 'fa-hospital', 'description' => 'Configure department section listing.', 'tab' => 'departmentsTab'],
+    'doctors' => ['label' => 'Doctors', 'icon' => 'fa-user-md', 'description' => 'Manage featured doctors section link.', 'tab' => 'doctorsTab'],
+    'cta-checkup' => ['label' => 'CTA Check-up', 'icon' => 'fa-stethoscope', 'description' => 'Edit call-to-action check-up banner.', 'tab' => 'ctaCheckupTab'],
+    'appointment' => ['label' => 'Appointment', 'icon' => 'fa-calendar-check', 'description' => 'Control appointment booking section copy.', 'tab' => 'appointmentTab'],
+    'process' => ['label' => 'Process', 'icon' => 'fa-cogs', 'description' => 'Update working process steps.', 'tab' => 'processTab'],
+    'statistics' => ['label' => 'Statistics', 'icon' => 'fa-chart-bar', 'description' => 'Manage numbers and metrics.', 'tab' => 'statsTab'],
+    'testimonials' => ['label' => 'Testimonials', 'icon' => 'fa-comments', 'description' => 'Go to testimonials management.', 'tab' => 'testimonialsTab'],
+    'blog' => ['label' => 'Blog', 'icon' => 'fa-newspaper', 'description' => 'Go to blog/news management.', 'tab' => 'blogTab'],
+    'location' => ['label' => 'Location', 'icon' => 'fa-map-marked-alt', 'description' => 'Edit map and location details.', 'tab' => 'locationTab'],
+    'cta-ready' => ['label' => 'CTA Ready', 'icon' => 'fa-rocket', 'description' => 'Configure final CTA near footer.', 'tab' => 'ctaReadyTab'],
+    'videos' => ['label' => 'Videos', 'icon' => 'fa-play-circle', 'description' => 'Manage homepage videos section.', 'tab' => 'videosTab'],
+];
+$currentSection = trim($_GET['section'] ?? 'dashboard');
+if (!isset($homepageSectionMenu[$currentSection])) {
+    $currentSection = 'dashboard';
+}
+$currentTabTarget = $homepageSectionMenu[$currentSection]['tab'] ?? null;
 
 if (!isset($infoStrip['items'])) {
     $infoStrip = ['items' => [
@@ -533,59 +723,78 @@ if (isset($_GET['msg'])) {
     <div class="alert alert-danger alert-dismissible fade show"><i class="fas fa-exclamation-circle me-2"></i><?= e($error) ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     <?php endif; ?>
 
-    <div class="card border-0 shadow-sm rounded-3 mb-4">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0"><i class="fas fa-toggle-on me-2 text-primary"></i>Section Visibility</h6>
-            <span class="badge bg-primary"><?= count(array_filter($sectionVisibility)) ?> / <?= count($allSections) ?> Active</span>
-        </div>
-        <div class="card-body p-4">
-            <p class="text-muted small mb-3">Toggle sections on or off to control what appears on the homepage. Changes take effect immediately after saving.</p>
-            <form method="POST" id="visibilityForm">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="save_visibility">
-                <div class="row g-3">
-                    <?php foreach ($allSections as $sKey => $sInfo): ?>
-                    <div class="col-lg-3 col-md-4 col-6">
-                        <div class="visibility-card <?= !empty($sectionVisibility[$sKey]) ? 'active' : '' ?>" onclick="toggleVisCard(this)">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <div class="vis-icon" style="background:<?= $sInfo['color'] ?>;"><i class="fas <?= $sInfo['icon'] ?>"></i></div>
-                                <span class="fw-semibold small"><?= e($sInfo['label']) ?></span>
-                            </div>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" name="section_visible[<?= $sKey ?>]" id="vis_<?= $sKey ?>" <?= !empty($sectionVisibility[$sKey]) ? 'checked' : '' ?> onchange="this.closest('.visibility-card').classList.toggle('active', this.checked); this.nextElementSibling.textContent = this.checked ? 'Visible' : 'Hidden'">
-                                <label class="form-check-label small" for="vis_<?= $sKey ?>"><?= !empty($sectionVisibility[$sKey]) ? 'Visible' : 'Hidden' ?></label>
+
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4 homepage-manager-shell">
+        <div class="card-body p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-home me-2 text-primary"></i>Homepage Section Manager</h5>
+                    <p class="text-muted mb-0">Use the menu to open each homepage editor. Dashboard gives a full section overview.</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn"><i class="fas fa-save me-2"></i>Save Draft</button>
+                    <button type="button" class="btn btn-primary" id="publishChangesBtn"><i class="fas fa-rocket me-2"></i>Publish Changes</button>
+                </div>
+            </div>
+
+            <div class="accordion" id="homepageSectionAccordion">
+                <div class="accordion-item border rounded-3 overflow-hidden">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#homepageSectionMenuCollapse" aria-expanded="true" aria-controls="homepageSectionMenuCollapse">
+                            <i class="fas fa-layer-group me-2"></i> Section Navigation
+                        </button>
+                    </h2>
+                    <div id="homepageSectionMenuCollapse" class="accordion-collapse collapse show" data-bs-parent="#homepageSectionAccordion">
+                        <div class="accordion-body">
+                            <div class="row g-2">
+                                <?php foreach ($homepageSectionMenu as $slug => $menuItem): ?>
+                                <div class="col-xl-3 col-lg-4 col-md-6">
+                                    <a href="/admin/home-sections.php?section=<?= e($slug) ?>" class="homepage-menu-link <?= $currentSection === $slug ? 'active' : '' ?>">
+                                        <i class="fas <?= e($menuItem['icon']) ?>"></i>
+                                        <span><?= e($menuItem['label']) ?></span>
+                                    </a>
+                                </div>
+                                <?php endforeach; ?>
                             </div>
                         </div>
                     </div>
-                    <?php endforeach; ?>
                 </div>
-                <div class="text-end mt-3">
-                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-2"></i>Save Visibility</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
-    <ul class="nav nav-tabs mb-4 flex-nowrap overflow-auto" role="tablist" style="white-space:nowrap;">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#heroSlidesTab" type="button"><i class="fas fa-images me-1"></i> Hero Slides</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#infoStripTab" type="button"><i class="fas fa-columns me-1"></i> Info Strip</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#aboutTab" type="button"><i class="fas fa-info-circle me-1"></i> About</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#wcuTab" type="button"><i class="fas fa-shield-alt me-1"></i> Why Choose Us</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#departmentsTab" type="button"><i class="fas fa-hospital me-1"></i> Departments</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#doctorsTab" type="button"><i class="fas fa-user-md me-1"></i> Doctors</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ctaCheckupTab" type="button"><i class="fas fa-stethoscope me-1"></i> CTA Check-up</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#appointmentTab" type="button"><i class="fas fa-calendar-check me-1"></i> Appointment</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#processTab" type="button"><i class="fas fa-cogs me-1"></i> Process</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#statsTab" type="button"><i class="fas fa-chart-bar me-1"></i> Statistics</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#testimonialsTab" type="button"><i class="fas fa-comments me-1"></i> Testimonials</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#blogTab" type="button"><i class="fas fa-newspaper me-1"></i> Blog</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#locationTab" type="button"><i class="fas fa-map-marked-alt me-1"></i> Location</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ctaReadyTab" type="button"><i class="fas fa-rocket me-1"></i> CTA Ready</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#videosTab" type="button"><i class="fab fa-youtube me-1" style="color:#ff0000;"></i> Videos</button></li>
-    </ul>
+    <?php if ($currentSection === 'dashboard'): ?>
+    <div class="row g-3 mb-4">
+        <?php foreach ($homepageSectionMenu as $slug => $menuItem): ?>
+        <?php if ($slug === 'dashboard') continue; ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 homepage-dashboard-card">
+                <div class="card-body p-3 d-flex flex-column">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="section-icon-badge"><i class="fas <?= e($menuItem['icon']) ?>"></i></span>
+                        <h6 class="mb-0"><?= e($menuItem['label']) ?></h6>
+                    </div>
+                    <p class="text-muted small flex-grow-1 mb-3"><?= e($menuItem['description']) ?></p>
+                    <a href="/admin/home-sections.php?section=<?= e($slug) ?>" class="btn btn-sm btn-outline-primary"><i class="fas fa-pen me-1"></i>Edit</a>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+    <div class="d-flex justify-content-between align-items-center mb-3 section-editor-head">
+        <div>
+            <h5 class="mb-1"><?= e($homepageSectionMenu[$currentSection]['label']) ?> Editor</h5>
+            <p class="text-muted mb-0"><?= e($homepageSectionMenu[$currentSection]['description']) ?></p>
+        </div>
+        <a href="/admin/home-sections.php?section=dashboard" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Back to Dashboard</a>
+    </div>
+
+
 
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="heroSlidesTab">
+        <div class="tab-pane <?= $currentTabTarget === "heroSlidesTab" ? "show active" : "" ?>" id="heroSlidesTab" <?= $currentTabTarget === "heroSlidesTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -593,7 +802,7 @@ if (isset($_GET['msg'])) {
                         <?= $visToggle('hero_slider') ?>
                     </div>
                     <?php if ($heroAction !== 'add' && $heroAction !== 'edit'): ?>
-                    <a href="/admin/home-sections.php?action=add&tab=heroSlidesTab" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Slide</a>
+                    <a href="/admin/home-sections.php?action=add&section=hero-slides" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Slide</a>
                     <?php endif; ?>
                 </div>
                 <div class="card-body p-4">
@@ -664,7 +873,7 @@ if (isset($_GET['msg'])) {
                             </div>
                             <div class="col-12 mt-3">
                                 <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>Save Slide</button>
-                                <a href="/admin/home-sections.php?tab=heroSlidesTab" class="btn btn-secondary px-4">Cancel</a>
+                                <a href="/admin/home-sections.php?section=hero-slides" class="btn btn-secondary px-4">Cancel</a>
                             </div>
                         </div>
                     </form>
@@ -688,7 +897,7 @@ if (isset($_GET['msg'])) {
                                         </form>
                                     </td>
                                     <td>
-                                        <a href="/admin/home-sections.php?action=edit&id=<?= $s['id'] ?>&tab=heroSlidesTab" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
+                                        <a href="/admin/home-sections.php?action=edit&id=<?= $s['id'] ?>&section=hero-slides" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i></a>
                                         <form method="POST" class="d-inline"><?= csrfField() ?><input type="hidden" name="action" value="hero_delete"><input type="hidden" name="delete_id" value="<?= $s['id'] ?>">
                                             <button type="button" class="btn btn-sm btn-outline-danger" data-delete-trigger data-delete-label="the slide '<?= e($s['title']) ?>'"><i class="fas fa-trash"></i></button>
                                         </form>
@@ -703,7 +912,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="infoStripTab">
+        <div class="tab-pane <?= $currentTabTarget === "infoStripTab" ? "show active" : "" ?>" id="infoStripTab" <?= $currentTabTarget === "infoStripTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -763,7 +972,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="aboutTab">
+        <div class="tab-pane <?= $currentTabTarget === "aboutTab" ? "show active" : "" ?>" id="aboutTab" <?= $currentTabTarget === "aboutTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-primary"></i>About Section</h6>
@@ -861,7 +1070,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="wcuTab">
+        <div class="tab-pane <?= $currentTabTarget === "wcuTab" ? "show active" : "" ?>" id="wcuTab" <?= $currentTabTarget === "wcuTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-shield-alt me-2 text-primary"></i>Why Choose Us Section</h6>
@@ -953,7 +1162,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="locationTab">
+        <div class="tab-pane <?= $currentTabTarget === "locationTab" ? "show active" : "" ?>" id="locationTab" <?= $currentTabTarget === "locationTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-map-marked-alt me-2 text-primary"></i>Location Section</h6>
@@ -1045,7 +1254,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="departmentsTab">
+        <div class="tab-pane <?= $currentTabTarget === "departmentsTab" ? "show active" : "" ?>" id="departmentsTab" <?= $currentTabTarget === "departmentsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-hospital me-2 text-primary"></i>Departments</h6>
@@ -1060,7 +1269,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="doctorsTab">
+        <div class="tab-pane <?= $currentTabTarget === "doctorsTab" ? "show active" : "" ?>" id="doctorsTab" <?= $currentTabTarget === "doctorsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-user-md me-2 text-primary"></i>Doctors</h6>
@@ -1075,7 +1284,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="ctaCheckupTab">
+        <div class="tab-pane <?= $currentTabTarget === "ctaCheckupTab" ? "show active" : "" ?>" id="ctaCheckupTab" <?= $currentTabTarget === "ctaCheckupTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-stethoscope me-2 text-primary"></i>CTA - Need a Check-up</h6>
@@ -1112,7 +1321,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="appointmentTab">
+        <div class="tab-pane <?= $currentTabTarget === "appointmentTab" ? "show active" : "" ?>" id="appointmentTab" <?= $currentTabTarget === "appointmentTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-calendar-check me-2 text-primary"></i>Appointment Section</h6>
@@ -1145,7 +1354,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="processTab">
+        <div class="tab-pane <?= $currentTabTarget === "processTab" ? "show active" : "" ?>" id="processTab" <?= $currentTabTarget === "processTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -1203,7 +1412,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="statsTab">
+        <div class="tab-pane <?= $currentTabTarget === "statsTab" ? "show active" : "" ?>" id="statsTab" <?= $currentTabTarget === "statsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center gap-2">
@@ -1256,7 +1465,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="testimonialsTab">
+        <div class="tab-pane <?= $currentTabTarget === "testimonialsTab" ? "show active" : "" ?>" id="testimonialsTab" <?= $currentTabTarget === "testimonialsTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-comments me-2 text-primary"></i>Testimonials</h6>
@@ -1271,7 +1480,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="blogTab">
+        <div class="tab-pane <?= $currentTabTarget === "blogTab" ? "show active" : "" ?>" id="blogTab" <?= $currentTabTarget === "blogTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-newspaper me-2 text-primary"></i>Latest News / Blog</h6>
@@ -1286,7 +1495,7 @@ if (isset($_GET['msg'])) {
             </div>
         </div>
 
-        <div class="tab-pane fade" id="ctaReadyTab">
+        <div class="tab-pane <?= $currentTabTarget === "ctaReadyTab" ? "show active" : "" ?>" id="ctaReadyTab" <?= $currentTabTarget === "ctaReadyTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-rocket me-2 text-primary"></i>CTA - Ready to Get Started</h6>
@@ -1332,7 +1541,7 @@ if (isset($_GET['msg'])) {
         </div>
 
         <!-- ═══════════════════ OUR VIDEOS TAB ═══════════════════ -->
-        <div class="tab-pane fade" id="videosTab">
+        <div class="tab-pane <?= $currentTabTarget === "videosTab" ? "show active" : "" ?>" id="videosTab" <?= $currentTabTarget === "videosTab" ? "" : "style=\"display:none;\"" ?>>
             <div class="card border-0 shadow-sm rounded-3 mb-4">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fab fa-youtube me-2" style="color:#ff0000;"></i>Our Latest Videos — Section Settings</h6>
@@ -1448,8 +1657,94 @@ if (isset($_GET['msg'])) {
         <!-- ══════════════════════════════════════════════════════ -->
 
     </div>
+    <?php endif; ?>
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
+
+
+async function postSectionManager(action, payload = {}) {
+    const fd = new FormData();
+    const csrfInput = document.querySelector('input[name="csrf_token"]');
+    if (csrfInput) fd.append('csrf_token', csrfInput.value);
+    fd.append('action', action);
+    Object.entries(payload).forEach(([k, v]) => {
+        if (Array.isArray(v)) {
+            v.forEach(item => fd.append(k + '[]', item));
+        } else {
+            fd.append(k, v);
+        }
+    });
+    const res = await fetch('/admin/home-sections.php', { method: 'POST', body: fd });
+    return res.json();
+}
+
+function updateStatusBadge(card, status) {
+    const badge = card.querySelector('.section-status-badge');
+    if (!badge) return;
+    badge.className = 'badge section-status-badge status-' + status;
+    badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+async function saveSectionToggle(key, checkbox) {
+    const visible = checkbox.checked ? '1' : '0';
+    try {
+        const data = await postSectionManager('save_section_toggle', { section_key: key, visible });
+        if (data.ok) {
+            const card = checkbox.closest('.section-manager-card');
+            updateStatusBadge(card, checkbox.checked ? 'active' : 'hidden');
+            refreshActiveBadge();
+        }
+    } catch (e) {
+        checkbox.checked = !checkbox.checked;
+    }
+}
+
+async function saveSectionAnimation(key, animation) {
+    try { await postSectionManager('save_section_animation', { section_key: key, animation }); } catch (e) {}
+}
+
+async function setSectionStatus(key, status, trigger) {
+    try {
+        const data = await postSectionManager('save_section_status', { section_key: key, status });
+        if (data.ok && trigger) {
+            const card = trigger.closest('.section-manager-card');
+            updateStatusBadge(card, status);
+            const toggle = card.querySelector('.section-visible-toggle');
+            if (toggle) toggle.checked = status === 'active';
+            refreshActiveBadge();
+        }
+    } catch (e) {}
+}
+
+function openSectionPreview(key) {
+    const col = document.querySelector('[data-section-key="' + key + '"]');
+    if (!col) return;
+    const title = col.querySelector('h6')?.textContent || key;
+    const desc = col.querySelector('small')?.textContent || 'Section preview';
+    const status = col.querySelector('.section-status-badge')?.textContent || 'Draft';
+    document.getElementById('sectionPreviewTitle').textContent = title + ' Preview';
+    document.getElementById('sectionPreviewBody').innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+                <h4 class="mb-1">${title}</h4>
+                <p class="text-muted mb-0">${desc}</p>
+            </div>
+            <span class="badge text-bg-primary">${status}</span>
+        </div>
+        <div class="rounded-3 p-4 text-white" style="background:linear-gradient(135deg,#0d1b3d,#1d4ed8,#14b8a6)">
+            <p class="mb-2">Live component preview scaffold</p>
+            <p class="mb-0 opacity-75">Animation preset and visibility are reflected in production rendering.</p>
+        </div>`;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('sectionPreviewModal')).show();
+}
+
+function refreshActiveBadge() {
+    const active = document.querySelectorAll('.section-status-badge.status-active').length;
+    const badge = document.getElementById('sectionActiveBadge');
+    if (badge) badge.textContent = active + ' Active';
+}
+
 function addStripItem() {
     const container = document.getElementById('stripItems');
     const count = container.querySelectorAll('.strip-item-row').length + 1;
@@ -1592,19 +1887,72 @@ function addStatItem() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    if (tab) {
-        const tabEl = document.querySelector('[data-bs-target="#' + tab + '"]');
-        if (tabEl) {
-            const bsTab = new bootstrap.Tab(tabEl);
-            bsTab.show();
-        }
+    const grid = document.getElementById('sectionCardsGrid');
+    if (grid && typeof Sortable !== 'undefined') {
+        Sortable.create(grid, {
+            animation: 180,
+            draggable: '.section-card-col',
+            handle: '.section-drag-handle',
+            onEnd: async function() {
+                const order = Array.from(grid.querySelectorAll('[data-section-key]')).map(el => el.getAttribute('data-section-key'));
+                try { await postSectionManager('save_section_order', { order }); } catch (e) {}
+            }
+        });
     }
+
+    const search = document.getElementById('sectionSearch');
+    if (search) {
+        search.addEventListener('input', function() {
+            const q = this.value.trim().toLowerCase();
+            document.querySelectorAll('[data-section-item]').forEach((el) => {
+                const title = el.getAttribute('data-section-title') || '';
+                const desc = el.getAttribute('data-section-description') || '';
+                el.style.display = (!q || title.includes(q) || desc.includes(q)) ? '' : 'none';
+            });
+        });
+    }
+
+    const createBtn = document.getElementById('createSectionBtn');
+    if (createBtn) {
+        createBtn.addEventListener('click', async () => {
+            const title = document.getElementById('newSectionTitle').value.trim();
+            const description = document.getElementById('newSectionDescription').value.trim();
+            if (!title) return;
+            const data = await postSectionManager('add_section', { title, description });
+            if (data.ok) window.location.href = '/admin/home-sections.php?section=dashboard';
+        });
+    }
+
+    const saveDraftBtn = document.getElementById('saveDraftBtn');
+    if (saveDraftBtn) saveDraftBtn.addEventListener('click', async () => { await postSectionManager('save_section_draft'); });
+
+    const publishBtn = document.getElementById('publishChangesBtn');
+    if (publishBtn) publishBtn.addEventListener('click', async () => { await postSectionManager('publish_section_changes'); });
 });
 </script>
 
 <style>
+
+.saas-section-manager .section-toolbar { background: linear-gradient(180deg,#ffffff,#f8fbff); }
+
+.homepage-manager-shell .accordion-button { font-weight: 700; }
+.homepage-menu-link { display:flex; align-items:center; gap:.55rem; padding:.62rem .72rem; border:1px solid #e5e9f2; border-radius:10px; text-decoration:none; color:#334155; font-size:.88rem; background:#fff; transition:all .2s ease; }
+.homepage-menu-link:hover { border-color:#bfd0f5; color:#1d4ed8; transform:translateY(-1px); }
+.homepage-menu-link.active { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:600; }
+.homepage-dashboard-card { border:1px solid #e9eef7; }
+.section-editor-head { background:#fff; border:1px solid #e8edf5; border-radius:14px; padding:12px 14px; }
+.section-search-wrap { width: min(440px, 100%); }
+.section-manager-card { transition: transform .2s ease, box-shadow .2s ease; border: 1px solid #e9eef7; }
+.section-manager-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(15,33,55,.12)!important; }
+.section-icon-badge { width: 38px; height: 38px; border-radius: 12px; display:inline-flex; align-items:center; justify-content:center; background: linear-gradient(135deg,#102a62,#2563eb); color:#fff; }
+.section-animation-select { width: 150px; }
+.section-drag-handle { cursor: grab; }
+.section-status-badge.status-active { background:#d1fae5; color:#065f46; }
+.section-status-badge.status-hidden { background:#fee2e2; color:#991b1b; }
+.section-status-badge.status-draft { background:#e0e7ff; color:#3730a3; }
+@media (max-width: 991px) {
+    .section-animation-select { width: 100%; }
+}
 .visibility-card {
     border: 2px solid #e9ecef;
     border-radius: 12px;

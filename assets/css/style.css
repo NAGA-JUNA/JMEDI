@@ -618,9 +618,13 @@ a {
    APPOINTMENT SECTION — PRO REDESIGN
 ═══════════════════════════════════════ */
 .appointment-section {
-    background: linear-gradient(135deg, #061b3a 0%, #0a2d6e 45%, #0c4a6e 75%, #065f46 100%);
+    background:
+        radial-gradient(circle at 12% 18%, rgba(24, 203, 255, 0.18), transparent 32%),
+        radial-gradient(circle at 88% 10%, rgba(99, 102, 241, 0.28), transparent 30%),
+        radial-gradient(circle at 92% 88%, rgba(45, 212, 191, 0.24), transparent 34%),
+        linear-gradient(124deg, #020f2b 0%, #06245b 46%, #083b6f 72%, #0a496e 100%);
     color: white;
-    padding: 6rem 0;
+    padding: 6.5rem 0;
     position: relative;
     overflow: hidden;
 }
@@ -630,59 +634,64 @@ a {
 .appt-shape {
     position: absolute;
     border-radius: 50%;
-    opacity: 0.07;
+    opacity: 0.12;
+    filter: blur(2px);
 }
 .appt-shape-1 {
-    width: 520px; height: 520px;
-    background: radial-gradient(circle, #38bdf8, transparent 70%);
-    top: -120px; right: -130px;
+    width: 560px; height: 560px;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.8), transparent 68%);
+    top: -160px; right: -180px;
 }
 .appt-shape-2 {
-    width: 350px; height: 350px;
-    background: radial-gradient(circle, #34d399, transparent 70%);
-    bottom: -100px; left: -80px;
+    width: 420px; height: 420px;
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.58), transparent 72%);
+    bottom: -130px; left: -120px;
 }
 .appt-shape-3 {
-    width: 220px; height: 220px;
-    background: radial-gradient(circle, #a78bfa, transparent 70%);
-    top: 50%; left: 38%;
-    opacity: 0.05;
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, rgba(167, 139, 250, 0.68), transparent 72%);
+    top: 52%; left: 35%;
+    opacity: 0.09;
 }
 .appt-dots {
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
-    background-size: 28px 28px;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px);
+    background-size: 30px 30px;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0.45));
 }
 
 /* ── Left info panel ── */
 .appt-badge-pill {
     display: inline-flex;
     align-items: center;
-    background: rgba(56,189,248,0.18);
-    border: 1px solid rgba(56,189,248,0.35);
-    color: #7dd3fc;
+    background: rgba(56,189,248,0.16);
+    border: 1px solid rgba(125,211,252,0.45);
+    color: #bae6fd;
     font-size: 0.82rem;
     font-weight: 600;
     letter-spacing: 0.6px;
     text-transform: uppercase;
     padding: 0.4rem 1rem;
     border-radius: 50px;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(12px);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 10px 25px rgba(0,0,0,0.18);
 }
 .appt-heading {
     font-size: clamp(2rem, 4vw, 2.9rem);
-    font-weight: 800;
+    font-weight: 900;
     line-height: 1.15;
     color: #fff;
-    margin-bottom: 1rem;
-    letter-spacing: -0.5px;
+    margin-bottom: 1.1rem;
+    letter-spacing: -0.8px;
+    text-shadow: 0 6px 30px rgba(0,0,0,0.4);
 }
 .appt-desc {
-    color: rgba(255,255,255,0.72);
-    line-height: 1.8;
-    font-size: 0.97rem;
+    color: rgba(255,255,255,0.78);
+    line-height: 1.72;
+    font-size: 1.02rem;
     margin-bottom: 1.5rem;
+    max-width: 95%;
 }
 .appt-checklist {
     list-style: none;
@@ -696,8 +705,8 @@ a {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    font-size: 0.93rem;
-    color: rgba(255,255,255,0.85);
+    font-size: 1rem;
+    color: rgba(255,255,255,0.9);
 }
 .appt-checklist li i {
     color: #34d399;
@@ -713,19 +722,22 @@ a {
     display: flex;
     align-items: center;
     gap: 1rem;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 14px;
-    padding: 0.9rem 1.2rem;
-    backdrop-filter: blur(10px);
-    transition: background 0.3s;
+    background: linear-gradient(115deg, rgba(40, 94, 187, 0.35), rgba(22, 52, 129, 0.42));
+    border: 1px solid rgba(148, 197, 255, 0.2);
+    border-radius: 16px;
+    padding: 1rem 1.2rem;
+    backdrop-filter: blur(14px);
+    transition: background 0.3s, transform 0.3s;
 }
-.appt-contact-card:hover { background: rgba(255,255,255,0.12); }
+.appt-contact-card:hover {
+    background: linear-gradient(115deg, rgba(59, 130, 246, 0.4), rgba(15, 23, 110, 0.5));
+    transform: translateY(-2px);
+}
 .appt-contact-icon {
     position: relative;
     width: 46px; height: 46px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    background: linear-gradient(135deg, #1e90ff, #3853ff);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.1rem;
     flex-shrink: 0;
@@ -733,11 +745,11 @@ a {
 .appt-contact-card small {
     display: block;
     font-size: 0.75rem;
-    color: rgba(255,255,255,0.55);
+    color: rgba(255,255,255,0.68);
     margin-bottom: 0.1rem;
 }
 .appt-contact-card strong {
-    font-size: 0.97rem;
+    font-size: 1.05rem;
     color: #fff;
     font-weight: 700;
 }
@@ -756,30 +768,44 @@ a {
 
 /* ── Right form card ── */
 .appt-form-card {
-    background: rgba(255,255,255,0.96);
-    border-radius: 24px;
-    box-shadow: 0 30px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08);
+    position: relative;
+    background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.82));
+    border-radius: 30px;
+    box-shadow: 0 35px 85px rgba(1, 9, 28, 0.55), 0 8px 30px rgba(13, 129, 217, 0.24);
     overflow: hidden;
-    backdrop-filter: blur(20px);
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(207, 235, 255, 0.65);
+    transform: translateY(-8px);
+}
+.appt-form-card::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 32px;
+    border: 1px solid rgba(109, 219, 255, 0.48);
+    box-shadow: 0 0 30px rgba(94, 234, 212, 0.35);
+    pointer-events: none;
 }
 .appt-form-header {
     display: flex;
     align-items: center;
     gap: 1rem;
-    background: linear-gradient(135deg, #0a2d6e, #0ea5e9);
-    padding: 1.1rem 1.6rem;
+    background:
+        radial-gradient(circle at 88% 22%, rgba(103, 232, 249, 0.38), transparent 34%),
+        linear-gradient(120deg, #103b8a 0%, #1f86d8 55%, #22d3ee 100%);
+    padding: 1.25rem 1.75rem;
     color: #fff;
 }
 .appt-form-header-icon {
-    width: 44px; height: 44px;
+    width: 46px; height: 46px;
     border-radius: 12px;
-    background: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.22);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.2rem;
     flex-shrink: 0;
 }
 .appt-form {
-    padding: 1.6rem;
+    padding: 1.65rem;
 }
 
 /* ── Input wrapper with icon ── */
@@ -791,7 +817,7 @@ a {
     left: 0.95rem;
     top: 50%;
     transform: translateY(-50%);
-    color: #0ea5e9;
+    color: #179ad8;
     font-size: 0.88rem;
     z-index: 2;
     pointer-events: none;
@@ -802,20 +828,20 @@ a {
 }
 .appt-form .form-control,
 .appt-form .form-select {
-    padding: 0.78rem 0.9rem 0.78rem 2.5rem;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 10px;
-    background: #f8fafc;
+    padding: 0.84rem 1rem 0.84rem 2.6rem;
+    border: 1px solid #dbe8f5;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(250, 252, 255, 0.96), rgba(244, 248, 252, 0.94));
     color: #1e293b;
-    font-size: 0.92rem;
+    font-size: 1rem;
     transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
 }
 .appt-form .form-control::placeholder { color: #94a3b8; }
 .appt-form .form-control:focus,
 .appt-form .form-select:focus {
-    border-color: #0ea5e9;
+    border-color: #38bdf8;
     background: #fff;
-    box-shadow: 0 0 0 3px rgba(14,165,233,0.12);
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.14), 0 8px 20px rgba(56,189,248,0.18);
     outline: none;
     color: #0f172a;
 }
@@ -831,25 +857,25 @@ a {
     overflow: hidden;
     width: 100%;
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 0;
-    background: linear-gradient(135deg, #0a2d6e 0%, #0ea5e9 100%);
+    background: linear-gradient(100deg, #163f9f 0%, #1f7fe3 48%, #23d7ea 100%);
     cursor: pointer;
     transition: transform 0.25s, box-shadow 0.25s;
 }
 .appointment-section .btn-appointment:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(14,165,233,0.45);
+    box-shadow: 0 14px 36px rgba(35, 136, 224, 0.55);
 }
 .appointment-section .btn-appointment:active { transform: translateY(0); }
 .btn-appt-inner {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.88rem 2rem;
-    font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: 0.4px;
+    padding: 1rem 2rem;
+    font-weight: 800;
+    font-size: 1.04rem;
+    letter-spacing: 0.5px;
     color: #fff;
     position: relative;
     z-index: 1;
@@ -871,6 +897,7 @@ a {
 @media (max-width: 767.98px) {
     .appt-form { padding: 1.2rem; }
     .appt-contact-cards { flex-direction: column; }
+    .appt-form-card { transform: none; }
     /* Neutralise Bootstrap g-5 negative row margins on mobile to stop horizontal overflow */
     .appointment-section .row { --bs-gutter-x: 1.5rem; }
 }
