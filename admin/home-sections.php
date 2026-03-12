@@ -30,6 +30,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         echo json_encode(['ok' => true]);
         exit;
     }
+
+    if (in_array($earlyAction, ['save_section_order', 'save_section_toggle', 'save_section_animation', 'save_section_status', 'add_section', 'save_section_draft', 'publish_section_changes'], true)) {
+        $allSectionsMap = [
+            'hero_slider' => ['label' => 'Hero Slider', 'icon' => 'fa-images', 'description' => 'Primary hero carousel and headline messaging.'],
+            'info_strip' => ['label' => 'Info Strip', 'icon' => 'fa-columns', 'description' => 'Quick access links for appointments and contact.'],
+            'about_section' => ['label' => 'About Us', 'icon' => 'fa-info-circle', 'description' => 'Hospital introduction and key trust signals.'],
+            'why_choose_us' => ['label' => 'Why Choose Us', 'icon' => 'fa-shield-alt', 'description' => 'Feature highlights and differentiators.'],
+            'departments' => ['label' => 'Departments', 'icon' => 'fa-hospital', 'description' => 'Department categories and specialties.'],
+            'doctors' => ['label' => 'Doctors', 'icon' => 'fa-user-md', 'description' => 'Featured doctors and physician listing.'],
+            'our_videos' => ['label' => 'Our Videos', 'icon' => 'fa-play-circle', 'description' => 'Video stories and healthcare guidance clips.'],
+            'cta_checkup' => ['label' => 'CTA - Check-up', 'icon' => 'fa-stethoscope', 'description' => 'Mid-page call-to-action block.'],
+            'appointment' => ['label' => 'Appointment Form', 'icon' => 'fa-calendar-check', 'description' => 'Inline booking section and lead capture.'],
+            'process' => ['label' => 'Working Process', 'icon' => 'fa-cogs', 'description' => 'How patients move through care journey.'],
+            'stats' => ['label' => 'Statistics', 'icon' => 'fa-chart-bar', 'description' => 'Outcome and trust metric counters.'],
+            'testimonials' => ['label' => 'Testimonials', 'icon' => 'fa-comments', 'description' => 'Social proof and patient feedback.'],
+            'blog' => ['label' => 'Latest News', 'icon' => 'fa-newspaper', 'description' => 'Latest updates and educational posts.'],
+            'location_section' => ['label' => 'Location & Map', 'icon' => 'fa-map-marked-alt', 'description' => 'Address, map and contact details.'],
+            'cta_ready' => ['label' => 'CTA - Get Started', 'icon' => 'fa-rocket', 'description' => 'Final conversion block near footer.'],
+        ];
+        $manager = getHomeSection($pdo, 'section_manager');
+        if (empty($manager['sections']) || !is_array($manager['sections'])) {
+            $manager['sections'] = [];
+        }
+        if (empty($manager['order']) || !is_array($manager['order'])) {
+            $manager['order'] = array_keys($allSectionsMap);
+        }
+        foreach ($allSectionsMap as $k => $meta) {
+            if (empty($manager['sections'][$k])) {
+                $manager['sections'][$k] = [
+                    'key' => $k,
+                    'title' => $meta['label'],
+                    'description' => $meta['description'],
+                    'icon' => $meta['icon'],
+                    'status' => 'active',
+                    'animation' => 'fade',
+                    'visible' => true,
+                    'is_custom' => false,
+                ];
+            }
+            if (!in_array($k, $manager['order'], true)) {
+                $manager['order'][] = $k;
+            }
+        }
+
+        $payload = ['ok' => true];
+        if ($earlyAction === 'save_section_order') {
+            $postedOrder = $_POST['order'] ?? [];
+            if (is_array($postedOrder)) {
+                $clean = array_values(array_filter($postedOrder, static fn($x) => isset($manager['sections'][$x])));
+                foreach (array_keys($manager['sections']) as $k) {
+                    if (!in_array($k, $clean, true)) $clean[] = $k;
+                }
+                $manager['order'] = $clean;
+            }
+        } elseif ($earlyAction === 'save_section_toggle') {
+            $key = trim($_POST['section_key'] ?? '');
+            if (isset($manager['sections'][$key])) {
+                $manager['sections'][$key]['visible'] = !empty($_POST['visible']);
+                $manager['sections'][$key]['status'] = !empty($_POST['visible']) ? 'active' : 'hidden';
+                $vis = getHomeSection($pdo, 'section_visibility') ?: [];
+                $vis[$key] = !empty($_POST['visible']);
+                saveHomeSection($pdo, 'section_visibility', $vis);
+            }
+        } elseif ($earlyAction === 'save_section_animation') {
+            $allowedAnimations = ['fade', 'slide', 'zoom', 'parallax'];
+            $key = trim($_POST['section_key'] ?? '');
+            $animation = trim($_POST['animation'] ?? 'fade');
+            if (isset($manager['sections'][$key]) && in_array($animation, $allowedAnimations, true)) {
+                $manager['sections'][$key]['animation'] = $animation;
+            }
+        } elseif ($earlyAction === 'save_section_status') {
+            $allowedStatuses = ['active', 'hidden', 'draft'];
+            $key = trim($_POST['section_key'] ?? '');
+            $status = trim($_POST['status'] ?? 'draft');
+            if (isset($manager['sections'][$key]) && in_array($status, $allowedStatuses, true)) {
+                $manager['sections'][$key]['status'] = $status;
+                $manager['sections'][$key]['visible'] = $status === 'active';
+            }
+        } elseif ($earlyAction === 'add_section') {
+            $title = trim($_POST['title'] ?? '');
+            $description = trim($_POST['description'] ?? '');
+            if ($title !== '') {
+                $slug = slugify($title);
+                $customKey = 'custom_' . ($slug ?: 'section_' . time());
+                $i = 2;
+                while (isset($manager['sections'][$customKey])) {
+                    $customKey = 'custom_' . ($slug ?: 'section') . '_' . $i++;
+                }
+                $manager['sections'][$customKey] = [
+                    'key' => $customKey,
+                    'title' => $title,
+                    'description' => $description ?: 'Custom homepage section.',
+                    'icon' => 'fa-layer-group',
+                    'status' => 'draft',
+                    'animation' => 'fade',
+                    'visible' => false,
+                    'is_custom' => true,
+                ];
+                $manager['order'][] = $customKey;
+                $payload['section'] = $manager['sections'][$customKey];
+            } else {
+                $payload = ['ok' => false, 'message' => 'Section title is required.'];
+            }
+        } elseif ($earlyAction === 'save_section_draft') {
+            $manager['last_saved_at'] = date('c');
+            $manager['workflow_state'] = 'draft';
+        } elseif ($earlyAction === 'publish_section_changes') {
+            $manager['last_published_at'] = date('c');
+            $manager['workflow_state'] = 'published';
+        }
+
+        if (!empty($payload['ok'])) {
+            saveHomeSection($pdo, 'section_manager', $manager);
+        }
+        header('Content-Type: application/json');
+        echo json_encode($payload);
+        exit;
+    }
 }
 
 $pageTitle = 'Home Page Sections';
@@ -100,6 +218,54 @@ $allSections = [
 if (empty($sectionVisibility)) {
     $sectionVisibility = array_fill_keys(array_keys($allSections), true);
 }
+
+
+$sectionManager = getHomeSection($pdo, 'section_manager');
+if (empty($sectionManager['sections']) || !is_array($sectionManager['sections'])) {
+    $sectionManager['sections'] = [];
+}
+if (empty($sectionManager['order']) || !is_array($sectionManager['order'])) {
+    $sectionManager['order'] = array_keys($allSections);
+}
+$sectionDescriptions = [
+    'hero_slider' => 'Primary hero carousel and headline messaging.',
+    'info_strip' => 'Quick access links for appointments and contact.',
+    'about_section' => 'Hospital introduction and trust building content.',
+    'why_choose_us' => 'Feature highlights and core differentiators.',
+    'departments' => 'Department categories and specialties.',
+    'doctors' => 'Featured doctors and physician listing.',
+    'our_videos' => 'Video stories and healthcare guidance clips.',
+    'cta_checkup' => 'Mid-page check-up call-to-action block.',
+    'appointment' => 'Inline booking section and lead capture form.',
+    'process' => 'How patients move through the care journey.',
+    'stats' => 'Outcome and trust metric counters.',
+    'testimonials' => 'Social proof and patient feedback cards.',
+    'blog' => 'Latest updates and educational posts.',
+    'location_section' => 'Address, map and contact details.',
+    'cta_ready' => 'Final conversion block near footer.',
+];
+foreach ($allSections as $k => $meta) {
+    if (empty($sectionManager['sections'][$k])) {
+        $sectionManager['sections'][$k] = [
+            'key' => $k,
+            'title' => $meta['label'],
+            'description' => $sectionDescriptions[$k] ?? 'Homepage section',
+            'icon' => $meta['icon'],
+            'status' => !empty($sectionVisibility[$k]) ? 'active' : 'hidden',
+            'animation' => 'fade',
+            'visible' => !empty($sectionVisibility[$k]),
+            'is_custom' => false,
+        ];
+    }
+    if (!in_array($k, $sectionManager['order'], true)) {
+        $sectionManager['order'][] = $k;
+    }
+}
+$orderedSectionKeys = array_values(array_filter($sectionManager['order'], static fn($k) => isset($sectionManager['sections'][$k])));
+foreach (array_keys($sectionManager['sections']) as $k) {
+    if (!in_array($k, $orderedSectionKeys, true)) $orderedSectionKeys[] = $k;
+}
+$activeSectionCount = count(array_filter($sectionManager['sections'], static fn($s) => ($s['status'] ?? '') === 'active'));
 
 if (!isset($infoStrip['items'])) {
     $infoStrip = ['items' => [
@@ -533,36 +699,112 @@ if (isset($_GET['msg'])) {
     <div class="alert alert-danger alert-dismissible fade show"><i class="fas fa-exclamation-circle me-2"></i><?= e($error) ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     <?php endif; ?>
 
-    <div class="card border-0 shadow-sm rounded-3 mb-4">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <h6 class="mb-0"><i class="fas fa-toggle-on me-2 text-primary"></i>Section Visibility</h6>
-            <span class="badge bg-primary"><?= count(array_filter($sectionVisibility)) ?> / <?= count($allSections) ?> Active</span>
+
+    <div class="saas-section-manager mb-4">
+        <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-1">Homepage Section Manager</h5>
+                <p class="text-muted mb-0">Drag, filter, preview and publish section changes with live AJAX saving.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn"><i class="fas fa-save me-2"></i>Save Draft</button>
+                <button type="button" class="btn btn-primary" id="publishChangesBtn"><i class="fas fa-rocket me-2"></i>Publish Changes</button>
+            </div>
         </div>
-        <div class="card-body p-4">
-            <p class="text-muted small mb-3">Toggle sections on or off to control what appears on the homepage. Changes take effect immediately after saving.</p>
-            <form method="POST" id="visibilityForm">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="save_visibility">
-                <div class="row g-3">
-                    <?php foreach ($allSections as $sKey => $sInfo): ?>
-                    <div class="col-lg-3 col-md-4 col-6">
-                        <div class="visibility-card <?= !empty($sectionVisibility[$sKey]) ? 'active' : '' ?>" onclick="toggleVisCard(this)">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <div class="vis-icon" style="background:<?= $sInfo['color'] ?>;"><i class="fas <?= $sInfo['icon'] ?>"></i></div>
-                                <span class="fw-semibold small"><?= e($sInfo['label']) ?></span>
+
+        <div class="section-toolbar card border-0 shadow-sm rounded-4 mb-3">
+            <div class="card-body p-3 p-md-4 d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                <div class="input-group section-search-wrap">
+                    <span class="input-group-text bg-transparent border-end-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" id="sectionSearch" placeholder="Search sections...">
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge text-bg-success" id="sectionActiveBadge"><?= $activeSectionCount ?> Active</span>
+                    <span class="badge text-bg-dark"><?= count($sectionManager['sections']) ?> Total</span>
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addSectionModal"><i class="fas fa-plus me-1"></i> Add Section</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="sectionCardsGrid" class="row g-3">
+            <?php foreach ($orderedSectionKeys as $sKey): $section = $sectionManager['sections'][$sKey]; ?>
+            <div class="col-xl-4 col-lg-6 section-card-col" data-section-item data-section-key="<?= e($sKey) ?>" data-section-title="<?= e(strtolower($section['title'] ?? $sKey)) ?>" data-section-description="<?= e(strtolower($section['description'] ?? '')) ?>">
+                <div class="section-manager-card card border-0 shadow-sm h-100 rounded-4" data-drag-handle>
+                    <div class="card-body p-3 p-md-4 d-flex flex-column gap-3">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-light btn-sm section-drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></button>
+                                <span class="section-icon-badge"><i class="fas <?= e($section['icon'] ?? 'fa-layer-group') ?>"></i></span>
+                                <div>
+                                    <h6 class="mb-0"><?= e($section['title'] ?? $sKey) ?></h6>
+                                    <small class="text-muted"><?= e($section['description'] ?? 'Homepage section') ?></small>
+                                </div>
                             </div>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" name="section_visible[<?= $sKey ?>]" id="vis_<?= $sKey ?>" <?= !empty($sectionVisibility[$sKey]) ? 'checked' : '' ?> onchange="this.closest('.visibility-card').classList.toggle('active', this.checked); this.nextElementSibling.textContent = this.checked ? 'Visible' : 'Hidden'">
-                                <label class="form-check-label small" for="vis_<?= $sKey ?>"><?= !empty($sectionVisibility[$sKey]) ? 'Visible' : 'Hidden' ?></label>
+                            <?php $status = $section['status'] ?? 'draft'; ?>
+                            <span class="badge section-status-badge status-<?= e($status) ?>"><?= e(ucfirst($status)) ?></span>
+                        </div>
+
+                        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input section-visible-toggle" type="checkbox" role="switch" id="sm_vis_<?= e($sKey) ?>" <?= !empty($section['visible']) ? 'checked' : '' ?> onchange="saveSectionToggle('<?= e($sKey) ?>', this)">
+                                <label class="form-check-label small" for="sm_vis_<?= e($sKey) ?>">Visible</label>
                             </div>
+                            <select class="form-select form-select-sm section-animation-select" onchange="saveSectionAnimation('<?= e($sKey) ?>', this.value)">
+                                <?php $ani = $section['animation'] ?? 'fade'; ?>
+                                <option value="fade" <?= $ani === 'fade' ? 'selected' : '' ?>>Fade</option>
+                                <option value="slide" <?= $ani === 'slide' ? 'selected' : '' ?>>Slide</option>
+                                <option value="zoom" <?= $ani === 'zoom' ? 'selected' : '' ?>>Zoom</option>
+                                <option value="parallax" <?= $ani === 'parallax' ? 'selected' : '' ?>>Parallax</option>
+                            </select>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-auto">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="setSectionStatus('<?= e($sKey) ?>', 'draft', this)"><i class="fas fa-pen-nib me-1"></i>Edit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openSectionPreview('<?= e($sKey) ?>')"><i class="fas fa-eye me-1"></i>Preview</button>
                         </div>
                     </div>
-                    <?php endforeach; ?>
                 </div>
-                <div class="text-end mt-3">
-                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-2"></i>Save Visibility</button>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addSectionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title">Add Section</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-            </form>
+                <div class="modal-body pt-3">
+                    <div class="mb-3">
+                        <label class="form-label">Section Title</label>
+                        <input type="text" class="form-control" id="newSectionTitle" placeholder="e.g. Insurance Partners">
+                    </div>
+                    <div>
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="newSectionDescription" rows="3" placeholder="Short description..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="createSectionBtn">Create Section</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="sectionPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+                <div class="modal-header border-0 bg-dark text-white">
+                    <h5 class="modal-title" id="sectionPreviewTitle">Section Preview</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="sectionPreviewBody" class="p-4 rounded-3 bg-light"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1449,7 +1691,92 @@ if (isset($_GET['msg'])) {
 
     </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
+
+
+async function postSectionManager(action, payload = {}) {
+    const fd = new FormData();
+    const csrfInput = document.querySelector('input[name="csrf_token"]');
+    if (csrfInput) fd.append('csrf_token', csrfInput.value);
+    fd.append('action', action);
+    Object.entries(payload).forEach(([k, v]) => {
+        if (Array.isArray(v)) {
+            v.forEach(item => fd.append(k + '[]', item));
+        } else {
+            fd.append(k, v);
+        }
+    });
+    const res = await fetch('/admin/home-sections.php', { method: 'POST', body: fd });
+    return res.json();
+}
+
+function updateStatusBadge(card, status) {
+    const badge = card.querySelector('.section-status-badge');
+    if (!badge) return;
+    badge.className = 'badge section-status-badge status-' + status;
+    badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+async function saveSectionToggle(key, checkbox) {
+    const visible = checkbox.checked ? '1' : '0';
+    try {
+        const data = await postSectionManager('save_section_toggle', { section_key: key, visible });
+        if (data.ok) {
+            const card = checkbox.closest('.section-manager-card');
+            updateStatusBadge(card, checkbox.checked ? 'active' : 'hidden');
+            refreshActiveBadge();
+        }
+    } catch (e) {
+        checkbox.checked = !checkbox.checked;
+    }
+}
+
+async function saveSectionAnimation(key, animation) {
+    try { await postSectionManager('save_section_animation', { section_key: key, animation }); } catch (e) {}
+}
+
+async function setSectionStatus(key, status, trigger) {
+    try {
+        const data = await postSectionManager('save_section_status', { section_key: key, status });
+        if (data.ok && trigger) {
+            const card = trigger.closest('.section-manager-card');
+            updateStatusBadge(card, status);
+            const toggle = card.querySelector('.section-visible-toggle');
+            if (toggle) toggle.checked = status === 'active';
+            refreshActiveBadge();
+        }
+    } catch (e) {}
+}
+
+function openSectionPreview(key) {
+    const col = document.querySelector('[data-section-key="' + key + '"]');
+    if (!col) return;
+    const title = col.querySelector('h6')?.textContent || key;
+    const desc = col.querySelector('small')?.textContent || 'Section preview';
+    const status = col.querySelector('.section-status-badge')?.textContent || 'Draft';
+    document.getElementById('sectionPreviewTitle').textContent = title + ' Preview';
+    document.getElementById('sectionPreviewBody').innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+                <h4 class="mb-1">${title}</h4>
+                <p class="text-muted mb-0">${desc}</p>
+            </div>
+            <span class="badge text-bg-primary">${status}</span>
+        </div>
+        <div class="rounded-3 p-4 text-white" style="background:linear-gradient(135deg,#0d1b3d,#1d4ed8,#14b8a6)">
+            <p class="mb-2">Live component preview scaffold</p>
+            <p class="mb-0 opacity-75">Animation preset and visibility are reflected in production rendering.</p>
+        </div>`;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('sectionPreviewModal')).show();
+}
+
+function refreshActiveBadge() {
+    const active = document.querySelectorAll('.section-status-badge.status-active').length;
+    const badge = document.getElementById('sectionActiveBadge');
+    if (badge) badge.textContent = active + ' Active';
+}
+
 function addStripItem() {
     const container = document.getElementById('stripItems');
     const count = container.querySelectorAll('.strip-item-row').length + 1;
@@ -1601,10 +1928,66 @@ document.addEventListener('DOMContentLoaded', function() {
             bsTab.show();
         }
     }
+
+    const grid = document.getElementById('sectionCardsGrid');
+    if (grid && typeof Sortable !== 'undefined') {
+        Sortable.create(grid, {
+            animation: 180,
+            draggable: '.section-card-col',
+            handle: '.section-drag-handle',
+            onEnd: async function() {
+                const order = Array.from(grid.querySelectorAll('[data-section-key]')).map(el => el.getAttribute('data-section-key'));
+                try { await postSectionManager('save_section_order', { order }); } catch (e) {}
+            }
+        });
+    }
+
+    const search = document.getElementById('sectionSearch');
+    if (search) {
+        search.addEventListener('input', function() {
+            const q = this.value.trim().toLowerCase();
+            document.querySelectorAll('[data-section-item]').forEach((el) => {
+                const title = el.getAttribute('data-section-title') || '';
+                const desc = el.getAttribute('data-section-description') || '';
+                el.style.display = (!q || title.includes(q) || desc.includes(q)) ? '' : 'none';
+            });
+        });
+    }
+
+    const createBtn = document.getElementById('createSectionBtn');
+    if (createBtn) {
+        createBtn.addEventListener('click', async () => {
+            const title = document.getElementById('newSectionTitle').value.trim();
+            const description = document.getElementById('newSectionDescription').value.trim();
+            if (!title) return;
+            const data = await postSectionManager('add_section', { title, description });
+            if (data.ok) window.location.reload();
+        });
+    }
+
+    const saveDraftBtn = document.getElementById('saveDraftBtn');
+    if (saveDraftBtn) saveDraftBtn.addEventListener('click', async () => { await postSectionManager('save_section_draft'); });
+
+    const publishBtn = document.getElementById('publishChangesBtn');
+    if (publishBtn) publishBtn.addEventListener('click', async () => { await postSectionManager('publish_section_changes'); });
 });
 </script>
 
 <style>
+
+.saas-section-manager .section-toolbar { background: linear-gradient(180deg,#ffffff,#f8fbff); }
+.section-search-wrap { width: min(440px, 100%); }
+.section-manager-card { transition: transform .2s ease, box-shadow .2s ease; border: 1px solid #e9eef7; }
+.section-manager-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(15,33,55,.12)!important; }
+.section-icon-badge { width: 38px; height: 38px; border-radius: 12px; display:inline-flex; align-items:center; justify-content:center; background: linear-gradient(135deg,#102a62,#2563eb); color:#fff; }
+.section-animation-select { width: 150px; }
+.section-drag-handle { cursor: grab; }
+.section-status-badge.status-active { background:#d1fae5; color:#065f46; }
+.section-status-badge.status-hidden { background:#fee2e2; color:#991b1b; }
+.section-status-badge.status-draft { background:#e0e7ff; color:#3730a3; }
+@media (max-width: 991px) {
+    .section-animation-select { width: 100%; }
+}
 .visibility-card {
     border: 2px solid #e9ecef;
     border-radius: 12px;
